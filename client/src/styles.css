@@ -1,104 +1,16 @@
+@import "tailwindcss";
+
 :root {
-  font-family: Segoe UI, sans-serif;
+  font-family:
+    Segoe UI,
+    sans-serif;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  background: #f3f4f6;
-  color: #111827;
-}
-
-.container {
-  max-width: 720px;
-  margin: 24px auto;
-  padding: 16px;
-}
-
-.card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-input,
-select,
-button {
-  font: inherit;
-  padding: 8px;
-}
-
-.buttons {
-  display: flex;
-  gap: 8px;
-}
-
-button {
-  border: 1px solid #1f2937;
-  background: #1f2937;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .error {
   color: #b91c1c;
   margin-top: 12px;
-}
-
-.offers {
-  margin: 12px 0 20px;
-}
-
-.offers-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.offer-card {
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 12px;
-  background: #fafafa;
-}
-
-.offer-card.selected {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
-}
-
-.offer-card h3 {
-  margin: 0 0 10px;
-}
-
-.offer-description {
-  margin: 0 0 10px;
-  color: #4b5563;
-}
-
-.offer-card ul {
-  margin: 10px 0 0;
-  padding-left: 20px;
-}
-
-.select-offer-btn {
-  width: 100%;
-  margin-top: 2px;
 }
