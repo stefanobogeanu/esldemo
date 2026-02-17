@@ -1,0 +1,9 @@
+{
+  "nextStep": {
+    "journeyItem": "externalJourneyExample",
+    "journeyStep": "Welcome-04604D35-0ED8-4997-B5EB-C862AB686334"
+  },
+  "actionResponse": null,
+  "instanceId": "042bcfd0-9140-4a21-965e-2edf6ff965d6",
+  "externalId": "042bcfd0-9140-4a21-965e-2edf6ff965d6"
+}

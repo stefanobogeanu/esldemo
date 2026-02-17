@@ -1,0 +1,91 @@
+{
+  "properties": {
+    "nextButton": {
+      "label": null,
+      "show": true
+    },
+    "previousButton": {
+      "label": null,
+      "show": false
+    }
+  },
+  "stepActions": [],
+  "isLastStep": false,
+  "isFirstStep": true,
+  "isFlowClosed": false,
+  "fields": [
+    {
+      "displayName": "Nationality",
+      "isReadOnly": false,
+      "name": "retailApplicantId_nationalityId",
+      "optionSetValues": [
+        {
+          "displayName": "American",
+          "id": "e26108c9-9ee5-4e83-9b84-f3687db44a47",
+          "name": "American",
+          "orderIndex": 7,
+          "status": 0,
+          "value": 0
+        },
+        {
+          "displayName": "British",
+          "id": "a05932d2-71bf-48bd-a5b2-f5f0c499c15c",
+          "name": "British",
+          "orderIndex": 5,
+          "status": 0,
+          "value": 0
+        },
+        {
+          "displayName": "French",
+          "id": "a9e3ab65-67a8-449b-8cbe-bf4b84d565dd",
+          "name": "French",
+          "orderIndex": 6,
+          "status": 0,
+          "value": 0
+        },
+        {
+          "displayName": "GBR",
+          "id": "adc6abe7-5fe5-46d9-9de4-b0e869227535",
+          "name": "GBR",
+          "orderIndex": 2,
+          "status": 0,
+          "value": 0
+        },
+        {
+          "displayName": "Romanian",
+          "id": "b969c125-6a8c-45eb-9b1e-1f66ec600559",
+          "name": "Romanian",
+          "orderIndex": 3,
+          "status": 0,
+          "value": 0
+        },
+        {
+          "displayName": "ROU",
+          "id": "7976778b-ff3e-491b-bcc5-9fa0edbbf5d1",
+          "name": "ROU",
+          "orderIndex": 1,
+          "status": 0,
+          "value": 0
+        },
+        {
+          "displayName": "Unknown",
+          "id": "09faf1d7-1603-4c0b-9212-36cd7d0fad7f",
+          "name": "Unknown",
+          "orderIndex": 4,
+          "status": 0,
+          "value": 0
+        }
+      ],
+      "requiredLevel": 0,
+      "type": "optionset",
+      "value": null,
+      "virtualType": "related"
+    }
+  ],
+  "journeyStepType": "default",
+  "journeyName": "externalJourneyExample",
+  "journeyItem": "externalJourneyExample",
+  "journeyStep": "Welcome-04604D35-0ED8-4997-B5EB-C862AB686334",
+  "instanceId": "62cf5fa7-26e5-4a40-9438-a3fe8b45b2ec",
+  "externalId": "62cf5fa7-26e5-4a40-9438-a3fe8b45b2ec"
+}
