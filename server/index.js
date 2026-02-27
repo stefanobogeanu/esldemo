@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
 
@@ -8,6 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const app = express();
 const port = process.env.PORT || 3000;
+const stepOverridesPath = path.resolve(__dirname, "config/step-overrides.json");
 const debugHttp =
   process.env.DEBUG_HTTP === "true" ||
   (process.env.DEBUG_HTTP !== "false" && process.env.NODE_ENV !== "production");
@@ -30,6 +32,8 @@ const config = {
   loadStepEndpoint: process.env.FINTECHOS_LOAD_STEP_ENDPOINT,
   nextEndpoint: process.env.FINTECHOS_NEXT_ENDPOINT,
   previousEndpoint: process.env.FINTECHOS_PREVIOUS_ENDPOINT,
+  callStepActionEndpoint: process.env.FINTECHOS_CALL_STEP_ACTION_ENDPOINT,
+  callViewItemEndpoint: process.env.FINTECHOS_CALL_VIEW_ITEM,
   pfapiBaseUrl:
     process.env.FINTECHOS_PFAPI_BASE_URL || process.env.FINTECHOS_BASE_URL,
   pfapiTokenEndpoint:
@@ -55,6 +59,7 @@ function validateEnv() {
     "loadStepEndpoint",
     "nextEndpoint",
     "previousEndpoint",
+    "callStepActionEndpoint",
   ];
 
   const missing = commonRequired.filter((key) => !config[key]);
@@ -341,6 +346,302 @@ async function loadStep(token, externalId) {
   return fintechosRequest({ method: "GET", url, token });
 }
 
+async function runCallCustomProcessorActions(token, step) {
+  const stepActions = Array.isArray(step?.stepActions) ? step.stepActions : [];
+  const callCustomProcessorActions = stepActions.filter(
+    (action) => action?.type === "callCustomProcessor" && action?.id,
+  );
+
+  if (callCustomProcessorActions.length === 0) {
+    return {
+      availableOffers: [],
+      esignUrl: null,
+      personaResponse: null,
+      stripePaymentDetails: null,
+    };
+  }
+
+  const externalId = step?.externalId || step?.instanceId;
+  if (!externalId) {
+    throw new Error(
+      "Cannot call custom processors: missing externalId/instanceId in step payload",
+    );
+  }
+
+  const availableOffers = [];
+  let esignUrl = null;
+  let personaResponse = null;
+  let stripePaymentDetails = null;
+  for (const action of callCustomProcessorActions) {
+    const base = `${absoluteUrl(config.callStepActionEndpoint)}/${encodeURIComponent(
+      action.id,
+    )}/${encodeURIComponent(externalId)}`;
+    const url = withCulture(base);
+
+    const actionResult = await fintechosRequest({
+      method: "POST",
+      url,
+      token,
+      data: {
+        values: [
+          {
+            attribute: "string",
+            value: "string",
+          },
+        ],
+      },
+    });
+
+    const actionOffers = actionResult?.actionResponse?.availableOffers;
+    if (Array.isArray(actionOffers)) {
+      availableOffers.push(...actionOffers);
+    }
+
+    const actionEsignUrl = actionResult?.actionResponse?.esignUrl;
+    if (typeof actionEsignUrl === "string" && actionEsignUrl.trim()) {
+      esignUrl = actionEsignUrl;
+    }
+
+    const actionPersonaResponse = actionResult?.actionResponse?.personaResponse;
+    if (
+      actionPersonaResponse &&
+      typeof actionPersonaResponse === "object" &&
+      !Array.isArray(actionPersonaResponse)
+    ) {
+      personaResponse = actionPersonaResponse;
+    }
+
+    const actionStripePaymentDetails =
+      actionResult?.actionResponse?.stripePaymentDetails;
+    if (
+      actionStripePaymentDetails &&
+      typeof actionStripePaymentDetails === "object" &&
+      !Array.isArray(actionStripePaymentDetails)
+    ) {
+      stripePaymentDetails = actionStripePaymentDetails;
+    }
+  }
+
+  return { availableOffers, esignUrl, personaResponse, stripePaymentDetails };
+}
+
+function normalizeStepKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function loadStepOverridesConfig() {
+  try {
+    if (!fs.existsSync(stepOverridesPath)) {
+      return null;
+    }
+
+    const raw = fs.readFileSync(stepOverridesPath, "utf8");
+    if (!raw.trim()) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    return parsed;
+  } catch (error) {
+    debugLog("Step overrides config load failed", {
+      path: stepOverridesPath,
+      message: error.message,
+    });
+    return null;
+  }
+}
+
+function findStepOverride(step, overridesConfig) {
+  if (!step || !overridesConfig) {
+    return null;
+  }
+
+  if (
+    overridesConfig.journeyName &&
+    step.journeyName &&
+    normalizeStepKey(overridesConfig.journeyName) !==
+      normalizeStepKey(step.journeyName)
+  ) {
+    return null;
+  }
+
+  const stepKey = normalizeStepKey(step.journeyStep);
+  if (!stepKey) {
+    return null;
+  }
+
+  const flows = Array.isArray(overridesConfig.formDrivenFlows)
+    ? overridesConfig.formDrivenFlows
+    : [];
+  for (const flow of flows) {
+    const steps = Array.isArray(flow?.steps) ? flow.steps : [];
+    for (const candidate of steps) {
+      if (normalizeStepKey(candidate?.journeyStep) === stepKey) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getFieldOrder(overrideField, fallbackIndex) {
+  const numericOrder = Number(overrideField?.orderIdx);
+  if (Number.isFinite(numericOrder)) {
+    return numericOrder;
+  }
+
+  const numericOrderIndex = Number(overrideField?.orderIndex);
+  if (Number.isFinite(numericOrderIndex)) {
+    return numericOrderIndex;
+  }
+
+  return fallbackIndex;
+}
+
+function applyFieldOverrides(step, stepOverride) {
+  const sourceFields = Array.isArray(step?.fields) ? step.fields : [];
+  if (sourceFields.length === 0) {
+    return step;
+  }
+
+  const overrideFields = Array.isArray(stepOverride?.fields)
+    ? stepOverride.fields
+    : [];
+  if (overrideFields.length === 0) {
+    return step;
+  }
+
+  const byFieldName = new Map();
+  overrideFields.forEach((field, index) => {
+    const fieldName = String(field?.name || "");
+    if (!fieldName || byFieldName.has(fieldName)) {
+      return;
+    }
+
+    byFieldName.set(fieldName, {
+      order: getFieldOrder(field, index),
+      hasVisibility: typeof field?.isVisible === "boolean",
+      isVisible: field?.isVisible,
+      ui: {
+        ...(typeof field?.placeholder === "string"
+          ? { placeholder: field.placeholder }
+          : {}),
+        ...(typeof field?.inputType === "string"
+          ? { inputType: field.inputType }
+          : {}),
+        ...(typeof field?.mask === "string" ? { mask: field.mask } : {}),
+        ...(typeof field?.phoneCountrySelect === "boolean"
+          ? { phoneCountrySelect: field.phoneCountrySelect }
+          : {}),
+        ...(typeof field?.defaultCountryCode === "string"
+          ? { defaultCountryCode: field.defaultCountryCode }
+          : {}),
+        ...(Array.isArray(field?.phoneCountries)
+          ? { phoneCountries: field.phoneCountries }
+          : {}),
+      },
+    });
+  });
+
+  const sortedFields = sourceFields
+    .map((field, index) => {
+      const fieldName = String(field?.name || "");
+      const override = byFieldName.get(fieldName);
+      let mergedField = field;
+      if (override) {
+        mergedField = {
+          ...field,
+          ...(override.hasVisibility ? { isVisible: override.isVisible } : {}),
+          ...(Object.keys(override.ui || {}).length > 0
+            ? {
+                ui: {
+                  ...(field?.ui && typeof field.ui === "object" ? field.ui : {}),
+                  ...override.ui,
+                },
+              }
+            : {}),
+        };
+      }
+
+      return {
+        field: mergedField,
+        index,
+        hasOverride: Boolean(override),
+        order: override ? override.order : Number.MAX_SAFE_INTEGER,
+      };
+    })
+    .sort((left, right) => {
+      if (left.order !== right.order) {
+        return left.order - right.order;
+      }
+
+      if (left.hasOverride !== right.hasOverride) {
+        return left.hasOverride ? -1 : 1;
+      }
+
+      return left.index - right.index;
+    })
+    .map((entry) => entry.field)
+    .filter((field) => field?.isVisible !== false);
+
+  return {
+    ...step,
+    fields: sortedFields,
+  };
+}
+
+function applyStepOverrides(step) {
+  const overridesConfig = loadStepOverridesConfig();
+  if (!overridesConfig) {
+    return step;
+  }
+
+  const stepOverride = findStepOverride(step, overridesConfig);
+  if (!stepOverride) {
+    return step;
+  }
+
+  const stepWithOverrides = applyFieldOverrides(step, stepOverride);
+  debugLog("Step field overrides applied", {
+    journeyStep: step?.journeyStep || null,
+    originalFieldCount: Array.isArray(step?.fields) ? step.fields.length : 0,
+    finalFieldCount: Array.isArray(stepWithOverrides?.fields)
+      ? stepWithOverrides.fields.length
+      : 0,
+  });
+  return stepWithOverrides;
+}
+
+function validateViewItemEnv() {
+  if (!config.callViewItemEndpoint) {
+    throw new Error("Missing env vars: callViewItemEndpoint");
+  }
+}
+
+async function loadStepAndRunCustomProcessors(token, externalId) {
+  const step = await loadStep(token, externalId);
+  const stepWithOverrides = applyStepOverrides(step);
+  const customProcessorPayload = await runCallCustomProcessorActions(
+    token,
+    stepWithOverrides,
+  );
+
+  return {
+    ...stepWithOverrides,
+    availableOffers: customProcessorPayload.availableOffers,
+    esignUrl: customProcessorPayload.esignUrl,
+    personaResponse: customProcessorPayload.personaResponse,
+    stripePaymentDetails: customProcessorPayload.stripePaymentDetails,
+  };
+}
+
 async function loadStepWithRetry(
   token,
   externalId,
@@ -351,7 +652,7 @@ async function loadStepWithRetry(
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      return await loadStep(token, externalId);
+      return await loadStepAndRunCustomProcessors(token, externalId);
     } catch (error) {
       lastError = error;
       const status = error.response?.status;
@@ -409,7 +710,7 @@ app.post("/api/journey/init", async (req, res) => {
       throw new Error("Start Journey did not return externalId");
     }
 
-    const step = await loadStep(token, externalId);
+    const step = await loadStepAndRunCustomProcessors(token, externalId);
 
     res.json({
       externalId,
@@ -435,7 +736,7 @@ app.post("/api/journey/load-step", async (req, res) => {
     }
 
     const token = await resolveToken(req);
-    const step = await loadStep(token, externalId);
+    const step = await loadStepAndRunCustomProcessors(token, externalId);
 
     return res.json(step);
   } catch (error) {
@@ -502,6 +803,39 @@ app.post("/api/journey/previous", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Previous step failed",
+      details: error.response?.data || error.message,
+    });
+  }
+});
+
+app.post("/api/journey/view-item", async (req, res) => {
+  try {
+    validateEnv();
+    validateViewItemEnv();
+
+    const { externalId, journeyStep } = req.body;
+    if (!externalId) {
+      return res.status(400).json({ message: "externalId is required" });
+    }
+    if (!journeyStep) {
+      return res.status(400).json({ message: "journeyStep is required" });
+    }
+
+    const token = await resolveToken(req);
+    const base = `${absoluteUrl(config.callViewItemEndpoint)}/${encodeURIComponent(
+      journeyStep,
+    )}/${encodeURIComponent(externalId)}`;
+    const url = withCulture(base);
+    const viewItem = await fintechosRequest({
+      method: "GET",
+      url,
+      token,
+    });
+
+    return res.json(viewItem);
+  } catch (error) {
+    return res.status(500).json({
+      message: "View item failed",
       details: error.response?.data || error.message,
     });
   }

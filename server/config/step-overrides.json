@@ -1,0 +1,68 @@
+{
+  "journeyName": "fTOSOnboardingAndOriginationOnlineJourney_External",
+  "formDrivenFlows": [
+    {
+      "steps": [
+        {
+          "journeyStep": "Review_Your_Personal_Details-FFDA2C95-5E25-4B56-A0C6-ECCB84FD2053",
+          "fields": [
+            {
+              "name": "retailApplicantId_firstName"
+            },
+            {
+              "name": "retailApplicantId_lastName"
+            },
+            {
+              "name": "retailApplicantId_email"
+            },
+            {
+              "name": "retailApplicantId_mobilePhone",
+              "placeholder": "555 123 4567",
+              "inputType": "tel",
+              "phoneCountrySelect": true,
+              "defaultCountryCode": "+1",
+              "phoneCountries": [
+                {
+                  "code": "+1",
+                  "label": "US",
+                  "flag": "🇺🇸"
+                },
+                {
+                  "code": "+40",
+                  "label": "RO",
+                  "flag": "🇷🇴"
+                },
+                {
+                  "code": "+44",
+                  "label": "UK",
+                  "flag": "🇬🇧"
+                }
+              ]
+            },
+            {
+              "name": "retailApplicantId_CNP",
+              "placeholder": "123-45-6789",
+              "mask": "ssn"
+            },
+            {
+              "name": "retailApplicantId_dateOfBirth"
+            },
+            {
+              "name": "retailApplicantId_fullAddress"
+            },
+            {
+              "name": "retailApplicantId_usaPatriotActConsent"
+            },
+            {
+              "name": "retailApplicantId_infoReviewed"
+            },
+            {
+              "name": "retailApplicantId_age",
+              "isVisible": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
